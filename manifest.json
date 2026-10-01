@@ -1,0 +1,14 @@
+{
+  "name": "Ҳифз — Қуръон ёдлаш",
+  "short_name": "Ҳифз",
+  "description": "Қуръонни 30 кунда ёдлаш режаси, зеҳн машқлари, тажвид ва ўқишни текшириш",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f3",
+  "theme_color": "#0f766e",
+  "lang": "uz",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
