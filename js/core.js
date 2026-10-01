@@ -315,5 +315,5 @@
   }
   applySettings();
 
-  window.H = { Q, SUR, AY, TOTAL, TJ, TJ_COLORS, TJ_CHECK, tjRules, parseTj, plain, words, norm, key, esc, wordHtml, ayahHtml, bismHtml, S, save, todayStr, addDays, diffDays, logToday, streak, INT, mk, isMem, markMem, unMem, grade, dueList, memList, byRef, firstG, planAyahs, portions, dayNum, portionDone, portionProgress, currentPortionIdx, audioUrl, playAyah, playList, stop, playing, player, speechSupported, makeRecognizer, evaluate, sim, toast, modal, closeModal, shuffle, pick, ref, applySettings };
+  window.H = { Q, SUR, AY, TOTAL, TJ, TJ_COLORS, TJ_CHECK, tjRules, parseTj, plain, words, norm, key, esc, wordHtml, ayahHtml, bismHtml, S, save, todayStr, addDays, diffDays, logToday, streak, INT, mk, isMem, markMem, unMem, grade, dueList, memList, byRef, firstG, planAyahs, portions, dayNum, portionDone, portionProgress, currentPortionIdx, audioUrl, playAyah, playList, stop, playing, player, speechSupported, makeRecognizer, evaluate, wordMatch, sim, toast, modal, closeModal, shuffle, pick, ref, applySettings };
 })();

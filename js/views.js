@@ -215,13 +215,14 @@
       const hide = new Set(step === 1 ? shuffle(idxs).slice(0, Math.max(1, Math.round(idxs.length * 0.45))) : idxs);
       view.innerHTML = `${stepsHtml}<div class="card">${prevHtml}<p class="muted">${step === 1 ? 'Ярим сўзлар яширилган.' : 'Ҳамма сўзлар яширилган.'} Ёддан ўқинг, эслолмасангиз сўзни босиб кўринг. Ҳеч сўзни очмасдан 3 марта ўқий олсангиз — кейинги босқичга.</p>
         <div class="ar" id="txt">${ayahHtml(ay, { hide })}</div>${S.set.showUz ? `<p class="uz">${esc(ay.uz)}</p>` : ''}
-        <div class="row"><button class="btn sm" id="reh">Қайта яшир</button><button class="btn sm" id="play">🔊</button><span class="chip" id="opened">Очилди: 0</span></div>
+        <div class="row"><button class="btn sm gold" id="hint">💡 Эслат</button><button class="btn sm" id="reh">Қайта яшир</button><button class="btn sm" id="play">🔊</button><span class="chip" id="opened">Очилди: 0</span></div>
         ${nav()}</div>`;
       let opened = 0;
       const bind = () => view.querySelectorAll('#txt .w.hid').forEach(w => w.onclick = () => { w.classList.remove('hid'); opened++; view.querySelector('#opened').textContent = 'Очилди: ' + opened; });
       bind();
       view.querySelector('#reh').onclick = () => { view.querySelectorAll('#txt .w').forEach(w => { if (hide.has(+w.dataset.i)) w.classList.add('hid'); }); opened = 0; view.querySelector('#opened').textContent = 'Очилди: 0'; bind(); };
       view.querySelector('#play').onclick = () => playAyah(ay.g);
+      view.querySelector('#hint').onclick = () => { const w = view.querySelector('#txt .w.hid'); if (!w) return toast('Ҳамма сўзлар очиқ'); w.click(); w.classList.add('near'); toast('Давоми: ' + ay.wt[+w.dataset.i]); };
       view.querySelector('#nextStep').onclick = () => goStep(step + 1);
     } else if (step === 3) {
       const idxs = ay.wn.map((n, k) => n ? k : -1).filter(k => k >= 0);
@@ -264,24 +265,61 @@
     el.innerHTML = `<div class="row" style="justify-content:center"><button class="btn sm ${sup ? 'primary' : ''}" id="mMic" ${sup ? '' : 'disabled'}>🎙️ Микрофон</button><button class="btn sm ${sup ? '' : 'primary'}" id="mSelf">👁️ Ўзим текшираман</button></div>
       ${sup ? '' : '<p class="muted center">Бу браузерда нутқни таниш йўқ. Chrome ёки Edge да микрофон ишлайди.</p>'}<div id="mode"></div>`;
     const modeEl = el.querySelector('#mode');
+    const refs = []; ayahs.forEach((a, ai) => a.wn.forEach((n, wi) => { if (n) refs.push({ ai, wi, n }); }));
+    const hiddenHtml = () => ayahs.map(a => `<div class="ar" data-a="${a.g}">${ayahHtml(a, { hide: new Set(a.wn.map((n, k) => n ? k : -1).filter(k => k >= 0)) })}</div>`).join('');
+    const wordEl = (root, r) => root.querySelector(`[data-a="${ayahs[r.ai].g}"] .w[data-i="${r.wi}"]`);
+    const wordOk = (a, b) => !!H.wordMatch(a, b);
     const mic = () => {
-      modeEl.innerHTML = `<button class="mic" id="mic">🎙️</button><p class="center muted" id="st">Босинг ва ўқишни бошланг. Тугагач яна босинг.</p><div class="ar" id="live" style="font-size:20px;color:var(--muted);min-height:30px"></div>`;
-      const btn = modeEl.querySelector('#mic'); let rec = null;
+      modeEl.innerHTML = `<p class="muted">Ўқиганингиз сари сўзлар очилиб боради. Тўхтаб қолсангиз — 4 сониядан сўнг илова кейинги сўзни ўзи кўрсатади ёки «Эслат»ни босинг.</p><div id="txt">${hiddenHtml()}</div>
+        <button class="mic" id="mic">🎙️</button><p class="center muted" id="st">Босинг ва ўқишни бошланг. Тугагач яна босинг.</p>
+        <div class="row" style="justify-content:center"><button class="btn sm gold" id="hint">💡 Эслат</button><span class="chip muted" id="hc">Эслатма: 0</span></div>
+        <div class="ar" id="live" style="font-size:18px;color:var(--muted);min-height:24px"></div>`;
+      const btn = modeEl.querySelector('#mic'); let rec = null, pos = 0, hints = 0, silence = null, lastText = '';
+      const paint = () => {
+        refs.forEach((r, k) => { const w = wordEl(modeEl, r); if (!w) return; w.classList.remove('cur'); if (k < pos) { w.classList.remove('hid'); w.classList.add('ok'); } else if (k === pos) w.classList.add('cur'); });
+        const c = modeEl.querySelector('.w.cur'); if (c) c.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      };
+      const track = text => {
+        const sp = text.split(/\s+/).map(H.norm).filter(Boolean); let p = 0;
+        for (const s of sp) {
+          if (p >= refs.length) break;
+          if (wordOk(refs[p].n, s)) p++;
+          else if (p + 1 < refs.length && wordOk(refs[p + 1].n, s)) p += 2;
+          else if (p + 2 < refs.length && wordOk(refs[p + 2].n, s)) p += 3;
+        }
+        pos = Math.max(pos, p); paint();
+      };
+      const hint = () => {
+        if (pos >= refs.length) return;
+        const w = wordEl(modeEl, refs[pos]); if (w) { w.classList.remove('hid'); w.classList.add('near'); }
+        hints++; modeEl.querySelector('#hc').textContent = 'Эслатма: ' + hints;
+        toast('Давоми: ' + ayahs[refs[pos].ai].wt[refs[pos].wi]);
+      };
+      const armSilence = () => { clearTimeout(silence); silence = setTimeout(() => { if (rec && rec.active && pos < refs.length) { hint(); armSilence(); } }, 4000); };
+      modeEl.querySelector('#hint').onclick = hint;
       btn.onclick = () => {
-        if (rec && rec.active) { rec.stop(); btn.classList.remove('rec'); modeEl.querySelector('#st').textContent = 'Таҳлил қилинмоқда...'; return; }
-        rec = makeRecognizer((fin, inter) => { modeEl.querySelector('#live').textContent = fin + ' ' + inter; }, fin => {
-          btn.classList.remove('rec');
+        if (rec && rec.active) { rec.stop(); clearTimeout(silence); btn.classList.remove('rec'); modeEl.querySelector('#st').textContent = 'Таҳлил қилинмоқда...'; return; }
+        pos = 0; paint();
+        rec = makeRecognizer((fin, inter) => { const t = fin + ' ' + inter; modeEl.querySelector('#live').textContent = t; if (t.trim() !== lastText) { lastText = t.trim(); armSilence(); } track(t); }, fin => {
+          btn.classList.remove('rec'); clearTimeout(silence);
           if (!fin.trim()) { modeEl.querySelector('#st').textContent = 'Овоз аниқланмади. Яна уриниб кўринг.'; return; }
-          const res = evaluate(ayahs, fin); renderResult(modeEl, ayahs, res); onResult(res);
+          const res = evaluate(ayahs, fin); res.hints = hints; res.score = Math.max(0, res.score - hints * 3);
+          renderResult(modeEl, ayahs, res); onResult(res);
         });
-        rec.start(); btn.classList.add('rec'); modeEl.querySelector('#st').textContent = 'Эшитяпман... ўқинг (интернет керак)';
+        rec.start(); btn.classList.add('rec'); modeEl.querySelector('#st').textContent = 'Эшитяпман... ўқинг (интернет керак)'; armSilence();
       };
     };
     const self = () => {
-      let revealed = false; const marked = new Set();
-      modeEl.innerHTML = `<p class="muted">Матн яширилган. Ёддан ўқинг, сўнг «Кўрсат»ни босиб, хато қилган сўзларингизни белгиланг.</p>
-        <div id="txt">${ayahs.map(a => `<div class="ar" data-a="${a.g}">${ayahHtml(a, { hide: new Set(a.wn.map((n, k) => n ? k : -1).filter(k => k >= 0)) })}</div>`).join('')}</div>
-        <div class="row" style="justify-content:center;margin-top:8px"><button class="btn primary" id="rev">👁️ Кўрсат</button><button class="btn ok" id="done" hidden>Баҳолаш</button></div>`;
+      let revealed = false; const marked = new Set(); let hints = 0;
+      modeEl.innerHTML = `<p class="muted">Матн яширилган. Ёддан ўқинг. Тўхтаб қолсангиз «Эслат» — кейинги сўзни кўрсатади. Сўнг «Кўрсат»ни босиб, хато қилган сўзларингизни белгиланг.</p>
+        <div id="txt">${hiddenHtml()}</div>
+        <div class="row" style="justify-content:center;margin-top:8px"><button class="btn sm gold" id="hint">💡 Эслат</button><button class="btn primary" id="rev">👁️ Кўрсат</button><button class="btn ok" id="done" hidden>Баҳолаш</button></div>`;
+      modeEl.querySelector('#hint').onclick = () => {
+        if (revealed) return;
+        const r = refs.find(x => { const w = wordEl(modeEl, x); return w && w.classList.contains('hid'); }); if (!r) return;
+        const w = wordEl(modeEl, r); w.classList.remove('hid'); w.classList.add('near'); hints++;
+        w.scrollIntoView({ block: 'center', behavior: 'smooth' }); toast('Давоми: ' + ayahs[r.ai].wt[r.wi]);
+      };
       modeEl.querySelector('#rev').onclick = () => {
         revealed = true; modeEl.querySelector('#rev').hidden = true; modeEl.querySelector('#done').hidden = false;
         modeEl.querySelectorAll('#txt .w').forEach(w => { w.classList.remove('hid'); w.onclick = () => { const id = w.closest('[data-a]').dataset.a + ':' + w.dataset.i; if (marked.has(id)) { marked.delete(id); w.classList.remove('mark'); } else { marked.add(id); w.classList.add('mark'); } }; });
@@ -289,7 +327,7 @@
       };
       modeEl.querySelector('#done').onclick = () => {
         const total = ayahs.reduce((s, a) => s + a.wc, 0);
-        const res = { total, bad: marked.size, miss: 0, near: 0, ok: total - marked.size, score: Math.round((total - marked.size) / total * 100), extra: [], self: true };
+        const res = { total, bad: marked.size + hints, miss: 0, near: 0, ok: total - marked.size - hints, score: Math.max(0, Math.round((total - marked.size - hints) / total * 100)), extra: [], self: true, hints };
         modeEl.querySelectorAll('#txt .w').forEach(w => w.onclick = null);
         onResult(res);
       };
@@ -303,7 +341,7 @@
     const extraByAyah = ayahs.map(() => []);
     res.extra.forEach(e => { const r = res.refs[Math.min(e.after, res.refs.length - 1)]; extraByAyah[r ? r.ai : 0].push(e.w); });
     el.innerHTML = `<p class="muted">🟩 тўғри · 🟨 тахминан тўғри · 🟥 хато / тушиб қолган</p>` + ayahs.map((a, ai) => `<div class="ar">${ayahHtml(a, { cls: i => lab[ai][i] || '' })}</div>${extraByAyah[ai].length ? `<p class="extra">+ ортиқча: ${esc(extraByAyah[ai].join(' '))}</p>` : ''}`).join('') +
-      `<div class="grid3" style="margin-top:8px"><div class="stat"><b class="ok-text">${res.ok + res.near}</b><small>тўғри</small></div><div class="stat"><b class="bad-text">${res.bad}</b><small>хато</small></div><div class="stat"><b class="bad-text">${res.miss}</b><small>тушиб қолган</small></div></div>`;
+      `<div class="grid3" style="margin-top:8px"><div class="stat"><b class="ok-text">${res.ok + res.near}</b><small>тўғри</small></div><div class="stat"><b class="bad-text">${res.bad}</b><small>хато</small></div><div class="stat"><b class="bad-text">${res.miss}</b><small>тушиб қолган</small></div></div>${res.hints ? `<p class="center muted">💡 Эслатма ишлатилди: ${res.hints} марта (ҳар бири −3%)</p>` : ''}`;
   }
   function showTj(ayahs) {
     const items = ayahs.flatMap(a => tjRules(a).map(r => ({ ...r, ay: a })));
@@ -346,10 +384,11 @@
       view.innerHTML = `<div class="row between"><span class="chip">${i + 1} / ${items.length}</span><span class="chip gold">${ref(ay)}</span></div><div class="spacer"></div>
         <div class="card">${prev ? `<p class="muted">Олдинги оят: <span class="ar" style="font-size:20px">${esc(prev.wt.slice(-4).join(' '))} …</span></p>` : ''}<p class="muted">Бу оятни ёддан ўқинг (${ay.wc} сўз):</p>
         <div class="ar" id="txt">${ayahHtml(ay, { hide: new Set(ay.wn.map((n, k) => n ? k : -1).filter(k => k >= 0)) })}</div>
-        <div class="row" style="justify-content:center;margin-top:8px"><button class="btn primary" id="rev">👁️ Кўрсат</button><button class="btn" id="play">🔊</button></div>
+        <div class="row" style="justify-content:center;margin-top:8px"><button class="btn sm gold" id="hint">💡 Эслат</button><button class="btn primary" id="rev">👁️ Кўрсат</button><button class="btn" id="play">🔊</button></div>
         <div id="grades" hidden><p class="uz">${esc(ay.uz)}</p><p class="muted center">Қандай эсладингиз?</p><div class="grid2"><button class="btn bad" data-q="0">❌ Унутдим</button><button class="btn" data-q="3">😓 Қийин</button><button class="btn" data-q="4">🙂 Яхши</button><button class="btn ok" data-q="5">😎 Осон</button></div></div></div>`;
       view.querySelector('#rev').onclick = () => { view.querySelectorAll('#txt .w').forEach(w => w.classList.remove('hid')); view.querySelector('#grades').hidden = false; view.querySelector('#rev').hidden = true; };
       view.querySelectorAll('#txt .w.hid').forEach(w => w.onclick = () => w.classList.remove('hid'));
+      view.querySelector('#hint').onclick = () => { const w = view.querySelector('#txt .w.hid'); if (!w) return; w.classList.remove('hid'); w.classList.add('near'); toast('Давоми: ' + ay.wt[+w.dataset.i]); };
       view.querySelector('#play').onclick = () => playAyah(ay.g);
       view.querySelectorAll('#grades button').forEach(b => b.onclick = () => { const q = +b.dataset.q; if (!free || q < 3) grade(ay, q); results.push(q); i++; one(); });
     };

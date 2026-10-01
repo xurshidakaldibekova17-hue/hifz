@@ -1,4 +1,4 @@
-const CACHE = "hifz-v1";
+const CACHE = "hifz-v2";
 const FILES = ["./", "./index.html", "./css/style.css", "./js/quran-data.js", "./js/core.js", "./js/exercises.js", "./js/views.js", "./manifest.json", "./icon.svg"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -9,9 +9,10 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   if (url.origin === location.origin) {
-    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
-      const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res;
-    })));
+    e.respondWith(fetch(e.request).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+      return res;
+    }).catch(() => caches.match(e.request)));
   } else if (url.hostname === "cdn.islamic.network") {
     e.respondWith(caches.open("hifz-audio").then(c => c.match(e.request).then(r => r || fetch(e.request).then(res => { if (res.ok) c.put(e.request, res.clone()); return res; }))));
   }
